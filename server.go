@@ -51,7 +51,7 @@ func handleLiteral(w dns.ResponseWriter, r *dns.Msg) {
 
 	// This is a AAAA request now
 	query := r.Question[0].Name
-	if len(query)-len(*zone)-1 <= 0 {
+	if len(query)-len(*zone) <= 0 {
 		// This is not something we'll respond to, probably the tld itself
 		log.Println("Length is wrong")
 		m.SetRcode(r, dns.RcodeNameError)
@@ -59,7 +59,7 @@ func handleLiteral(w dns.ResponseWriter, r *dns.Msg) {
 		return
 	}
 	// query is simply the v6 address
-	query = query[:len(query)-len(*zone)-2]
+	query = query[:len(query)-len(*zone)-1]
 	if strings.Count(query, ".") > 0 {
 		// There is a subdomain query here, not something we care about
 		// Someone also may have tried a v4 address, we don't do those
@@ -104,6 +104,9 @@ func serve(net string, port int) {
 
 func main() {
 	flag.Parse()
+	// Use only an FQDN
+	z := dns.Fqdn(*zone)
+	zone = &z
 	dns.HandleFunc(*zone, handleLiteral)
 	go serve("tcp", *port)
 	go serve("udp", *port)
