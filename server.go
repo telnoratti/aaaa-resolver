@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 var (
@@ -36,11 +37,41 @@ var (
 	debug      = flag.Bool("debug", false, "debugging output")
 	zone       = flag.String("zone", "ipv6-literal", "zone to generate subdomains for")
 	port       = flag.Int("port", 8053, "port to run on")
+	ns         = flag.String("ns", "ipv6-literal.", "NS")
+	mbox       = flag.String("mbox", "", "mbox string for SOA")
 )
 
 func handleLiteral(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
+
+	if r.Question[0].Qtype == dns.TypeSOA {
+		log.Println("SOA reply" + *zone)
+		serial, err := strconv.Atoi(time.Now().Format("20060102"))
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		rr := &dns.SOA{
+			Hdr: dns.RR_Header{
+				Name:   *zone,
+				Rrtype: dns.TypeSOA,
+				Class:  dns.ClassINET,
+				Ttl:    3600,
+			},
+			Ns:      *ns,
+			Mbox:    *mbox,
+			Serial:  uint32(serial),
+			Refresh: 43200,
+			Retry:   180,
+			Expire:  2419200,
+			Minttl:  10800,
+		}
+		m.Answer = append(m.Answer, rr)
+		w.WriteMsg(m)
+		m.SetRcode(r, dns.RcodeNameError)
+		w.WriteMsg(m)
+		return
+	}
 
 	if r.Question[0].Qtype != dns.TypeAAAA {
 		log.Println("Wrong query type")
@@ -107,6 +138,17 @@ func main() {
 	// Use only an FQDN
 	z := dns.Fqdn(*zone)
 	zone = &z
+	n := dns.Fqdn(*ns)
+	ns = &n
+	var e string
+	// Pick a good looking email if none provided
+	if *mbox == "" {
+		e = "hostmaster." + *zone
+	} else {
+		e = dns.Fqdn(*mbox)
+	}
+	mbox = &e
+
 	dns.HandleFunc(*zone, handleLiteral)
 	go serve("tcp", *port)
 	go serve("udp", *port)
