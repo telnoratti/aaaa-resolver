@@ -68,7 +68,20 @@ func handleLiteral(w dns.ResponseWriter, r *dns.Msg) {
 		}
 		m.Answer = append(m.Answer, rr)
 		w.WriteMsg(m)
-		m.SetRcode(r, dns.RcodeNameError)
+		return
+	}
+	if r.Question[0].Qtype == dns.TypeNS && r.Question[0].Name == *zone {
+		log.Println("NS reply" + *ns)
+		rr := &dns.NS{
+			Hdr: dns.RR_Header{
+				Name:   r.Question[0].Name,
+				Rrtype: dns.TypeNS,
+				Class:  dns.ClassINET,
+				Ttl:    3600,
+			},
+			Ns: *ns,
+		}
+		m.Answer = append(m.Answer, rr)
 		w.WriteMsg(m)
 		return
 	}
